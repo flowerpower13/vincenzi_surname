@@ -4,7 +4,7 @@ Retrieve surname's nation of origin (from ancestry.com and forebears.io)
 
 # Instructions
 ## 0. Update ChromeDriver
-search what is your version of Google Chrome. In address bar type "chrome://version".
+Search what is your version of Google Chrome. In address bar type "chrome://version".
 Download proper version of driver from https://chromedriver.chromium.org/downloads.
 
 
