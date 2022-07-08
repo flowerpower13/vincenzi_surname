@@ -1,18 +1,42 @@
-import os
-import csv
 import time
 import pandas as pd
 from pathlib import Path
 from bs4 import BeautifulSoup
-
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
 
+#PRELIMINARY
+#INSTALL BRAVE
+#https://brave.com/download/
+
+#LOCATE BRAVE APP
+#right click on Brave app, "Properties", "Open File Location"
+#/e.g., C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe)
+#set location in variable "location" (already done below)
+
+#CHECK BRAVE'S CHROME VERSION
+#open Brave, go to Address Bar, type "brave://version"
+#search "Chrome/", see code (e.g., Chrome/103.0.5060.114)
+ 
+#DOWNLOAD PROPER CHROMEDRIVER
+#https://chromedriver.chromium.org/downloads
+#choose version close to current (e.g., 103)
+
+#selenium
+location="C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"
+options=webdriver.ChromeOptions()
+options.binary_location=(location)
+args=[
+    "--incognito", 
+    "--headless", 
+    "--disable-popup-blocking",
+    "--disable-notifications",
+    ]
+for i, arg in enumerate(args):
+    options.add_argument(arg)
+driver=webdriver.Chrome(executable_path="chromedriver", options=options)
+
+#from html to soup
 def _html_to_soup(html):
-    options=webdriver.ChromeOptions()
-    options.add_argument("--incognito")
-    driver=webdriver.Chrome(executable_path="chromedriver", options=options)
     driver.get(html)
     text=driver.page_source
     soup=BeautifulSoup(text, 'html.parser')
@@ -57,7 +81,8 @@ def _forebears(surname):
 
     return nation, html
 
-def _surname(folders, item_names, sleep_sec):
+#retrieve surname origin
+def _surname(folders, item_names, time_sleep):
     resources=folders[0]
     results=folders[1]
 
@@ -71,24 +96,29 @@ def _surname(folders, item_names, sleep_sec):
             df[col]=pd.NA 
 
     n_obs=len(df.index)
+    tot=n_obs-1
 
+    new_vals=[None]*n_obs
+    new_links=[None]*n_obs
+    
     _functions=[_ancestry, _forebears]
     for i, _function in enumerate(_functions):
         col=_function.__name__.replace("_", "")
-
         old_vals=df[col].tolist()
 
-        new_vals=[None]*n_obs
-        new_links=[None]*n_obs
-
         for j, old_val in enumerate(old_vals):
+            surname=df.loc[j, "surname"]
             if not pd.isna(old_val):
                 new_vals[j]=old_val
-            elif pd.isna(old_val):
-                surname=df.loc[j, "surname"]
+                print(f"{j}/{tot} - {surname} - {col} - already done")
+
+            elif pd.isna(old_val): 
                 new_val, new_link=_function(surname)
                 new_vals[j]=new_val
                 new_links[j]=new_link
+                print(f"{j}/{tot} - {surname} - {col} - done")
+
+                time.sleep(time_sleep)
 
         df[col]=new_vals
         df[f"{col}_link"]=new_links
@@ -97,15 +127,13 @@ def _surname(folders, item_names, sleep_sec):
     df=df.set_index("surname")
     df.to_csv(file_path)
 
-#UPDATE CHROMEDRIVER (use brave???)
-#chrome://version
-#https://chromedriver.chromium.org/downloads
 
-#RETRIEVE SURNAME NATION
+
+#RETRIEVE SURNAME ORIGIN
 folders=["_surname0", "_surname1"]
 item_names=["surname"]
-sleep_sec=1
-_surname(folders, item_names, sleep_sec)
+time_sleep=0
+_surname(folders, item_names, time_sleep)
 
 print("done")
 
