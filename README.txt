@@ -17,7 +17,7 @@ Put file in folder "surname0"
 Run "main.py".
 
 
-## 3. Onserve Results
+## 3. Observe Results
 Results are in "surname1".
 
 
