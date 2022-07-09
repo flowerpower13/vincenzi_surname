@@ -1,6 +1,6 @@
 # Retrieve surname's nation of origin 
 
-The rountine accesses ancestry.com and forebears.io to extract relevant information.
+The routine accesses ancestry.com and forebears.io to extract relevant information.
 
 
 ## Instructions
@@ -13,7 +13,7 @@ Create a file named `surname.csv`, with column `surname` filled with surnames to
 retrieve. Make sure to put file in the folder `_surname0`.
 
 3. Run `main.py` by specifying the OS as an additional argument. Available
-optinos are `windows` for Windows OS and `mac` for macOS. 
+options are `windows` for Windows OS and `mac` for macOS. 
 
 4. Collect results in the folder `_surname1`.
 
