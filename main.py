@@ -3,6 +3,12 @@ import pandas as pd
 from pathlib import Path
 from bs4 import BeautifulSoup
 from selenium import webdriver
+import sys
+import os
+
+# use sys.argv to control which type of platform the code is running on
+os_specification = sys.argv[1]
+print("\nChoose OS:", os_specification)
 
 #PRELIMINARY
 #INSTALL BRAVE
@@ -21,10 +27,16 @@ from selenium import webdriver
 #https://chromedriver.chromium.org/downloads
 #choose version close to current (e.g., 103)
 
-#selenium
-location="C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"
+# this allows to pass an argument to select the OS
+# it is still a dirty workaround which gives us what we want
+if os_specification == "windows":
+    location="C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"
+elif os_specification == "mac":
+    location="/Applications/Brave Browser.app"
+
 options=webdriver.ChromeOptions()
 options.binary_location=(location)
+# these are basically ignored as not strictly required
 args=[
     "--incognito", 
     "--headless", 
@@ -33,7 +45,8 @@ args=[
     ]
 for i, arg in enumerate(args):
     options.add_argument(arg)
-driver=webdriver.Chrome(executable_path="chromedriver", options=options)
+#driver=webdriver.Chrome(executable_path="./chromedriver", options=options)
+driver=webdriver.Chrome(executable_path="./chromedriver") 
 
 #from html to soup
 def _html_to_soup(html):
