@@ -1,52 +1,57 @@
 import time
+import unicodedata
 import pandas as pd
 from pathlib import Path
 from bs4 import BeautifulSoup
 from selenium import webdriver
-import sys
-import os
 
-# use sys.argv to control which type of platform the code is running on
-os_specification = sys.argv[1]
-print("\nChoose OS:", os_specification)
+#SET SPECIFICATION
+os_specification="windows"
+#os_specification="mac"
 
 #PRELIMINARY
-#INSTALL BRAVE
-#https://brave.com/download/
+"""
+INSTALL BRAVE
+https://brave.com/download/
 
-#LOCATE BRAVE APP
-#right click on Brave app, "Properties", "Open File Location"
-#/e.g., C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe)
-#set location in variable "location" (already done below)
+LOCATE BRAVE APP
+right click on Brave app, "Properties", "Open File Location"
+/e.g., C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe)
+set location in variable "location" (already done below)
 
-#CHECK BRAVE'S CHROME VERSION
-#open Brave, go to Address Bar, type "brave://version"
-#search "Chrome/", see code (e.g., Chrome/103.0.5060.114)
+CHECK BRAVE'S CHROME VERSION
+open Brave, go to Address Bar, type "brave://version"
+search "Chrome/", see code (e.g., Chrome/103.0.5060.114)
  
-#DOWNLOAD PROPER CHROMEDRIVER
-#https://chromedriver.chromium.org/downloads
-#choose version close to current (e.g., 103)
+DOWNLOAD PROPER CHROMEDRIVER
+https://chromedriver.chromium.org/downloads
+choose version close to current (e.g., 103)
+"""
 
 # this allows to pass an argument to select the OS
 # it is still a dirty workaround which gives us what we want
-if os_specification == "windows":
+if os_specification=="windows":
     location="C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"
-elif os_specification == "mac":
+elif os_specification=="mac":
     location="/Applications/Brave Browser.app"
 
+#SELENIUM
+#set driver options
 options=webdriver.ChromeOptions()
 options.binary_location=(location)
-# these are basically ignored as not strictly required
+
+#add arguments
 args=[
     "--incognito", 
     "--headless", 
-    "--disable-popup-blocking",
     "--disable-notifications",
+    "--log-level=3"
     ]
 for i, arg in enumerate(args):
     options.add_argument(arg)
-#driver=webdriver.Chrome(executable_path="./chromedriver", options=options)
-driver=webdriver.Chrome(executable_path="./chromedriver") 
+    
+#start driver
+driver=webdriver.Chrome(executable_path="chromedriver", options=options)
 
 #from html to soup
 def _html_to_soup(html):
@@ -94,8 +99,96 @@ def _forebears(surname):
 
     return nation, html
 
+def _ascii(row):
+    row=unicodedata.normalize('NFKD', row).encode('ASCII', 'ignore').decode()
+    return row
+
+def _first_name(row):
+    char="."
+    if char in row:
+        row=row.split(".")
+        row=row[1]
+    return row
+
+def _clean_col(col):
+    #uppercase
+    col=col.str.lower()
+
+    #encoding
+    _function=_ascii
+    col=col.apply(_function)
+
+    #remove first names
+    _function=_first_name
+    col=col.apply(_function)
+
+    #remove text within parentheses
+    pat=r"\(.*?\)"
+    col=col.str.replace(pat, "", regex=True)
+
+    #remove text within slashes \
+    pat=r"\\.*?\\"
+    col=col.str.replace(pat, "", regex=True)
+
+    #remove text within slashes /
+    pat=r"\/.*?\/"
+    col=col.str.replace(pat, "", regex=True)
+
+    #remove text within quote marks "
+    pat=r'\".*?\"'
+    col=col.str.replace(pat, "", regex=True)
+
+    #remove text within quote marks "
+    pat=r'\"".*?\""'
+    col=col.str.replace(pat, "", regex=True)
+
+    #remove punctuation
+    pat=r"[^\w\s]"
+    col=col.str.replace(pat, "", regex=True)
+
+    #remove whitespaces
+    col=col.str.strip()
+    pat=r"\s+"
+    col=col.str.replace(pat, " ", regex=True)
+
+    return col
+
+def _clean_df(df, label):
+    col=df[label]
+    df[label]=_clean_col(col)
+    col=df[label]
+    df[label]=_clean_col(col)
+
+    df=df.drop_duplicates(subset=[label])
+    df=df.dropna(subset=[label])
+    df=df.sort_values(by=[label])
+    df=df[df[label]!=""]
+
+    return df
+
+def _create_df(file_stem, surname, _functions):
+    df=pd.DataFrame()
+    df[file_stem]=[surname]
+
+    for i, _function in enumerate(_functions):
+        col=_function.__name__.replace("_", "")
+        col_link=f"{col}_link"
+
+        try:
+            new_val, new_link=_function(surname)
+
+        except Exception as e:
+            new_val, new_link= pd.NA, pd.NA
+
+            print(e)
+
+        df[col]=[new_val]
+        df[col_link]=[new_link]
+
+    return df
+
 #retrieve surname origin
-def _surname(folders, item_names, time_sleep):
+def _surname(folders, item_names, time_sleep, _functions):
     resources=folders[0]
     results=folders[1]
 
@@ -103,50 +196,103 @@ def _surname(folders, item_names, time_sleep):
     file_path=f"{resources}/{file_stem}.csv"
     df=pd.read_csv(file_path, dtype=str)
 
-    cols=["ancestry", "ancestry_link", "forebears", "forebears_link"]
-    for i, col in enumerate(cols):
-        if col not in df.columns:
-            df[col]=pd.NA 
-
     n_obs=len(df.index)
     tot=n_obs-1
 
-    new_vals=[None]*n_obs
-    new_links=[None]*n_obs
-    
-    _functions=[_ancestry, _forebears]
-    for i, _function in enumerate(_functions):
-        col=_function.__name__.replace("_", "")
-        old_vals=df[col].tolist()
+    label=file_stem
+    df=_clean_df(df, label)
 
-        for j, old_val in enumerate(old_vals):
-            surname=df.loc[j, "surname"]
-            if not pd.isna(old_val):
-                new_vals[j]=old_val
-                print(f"{j}/{tot} - {surname} - {col} - already done")
+    surnames=df[file_stem].tolist()
 
-            elif pd.isna(old_val): 
-                new_val, new_link=_function(surname)
-                new_vals[j]=new_val
-                new_links[j]=new_link
-                print(f"{j}/{tot} - {surname} - {col} - done")
+    frames=[None]*n_obs
+    converteds=[None]*n_obs
 
-                time.sleep(time_sleep)
+    for i, surname in enumerate(surnames):
+        output=Path(f"{results}/{surname}.csv")
 
-        df[col]=new_vals
-        df[f"{col}_link"]=new_links
+        if output.is_file():
+            df=pd.read_csv(output, dtype="string")
+            df=df.set_index(file_stem)
+            converted=True
+            print(f"{i}/{tot} - {surname} - already done")
+
+        elif not output.is_file():
+
+            try:
+                df=_create_df(file_stem, surname, _functions)
+                df=df.set_index(file_stem)
+                df.to_csv(output)
+                converted=True
+
+                print(f"{i}/{tot} - {surname} - done")
+
+            except Exception as e:
+                df=pd.DataFrame()
+                converted=False
+
+                print(f"{i}/{tot} - {surname} - exception")
+                print(e)
+            
+            time.sleep(time_sleep)
+
+        frames[i]=df
+        converteds[i]=converted
+
+    df=pd.concat(frames)
+    df=df.reindex(index=surnames)
+    df.insert(0, "converted", converteds)  
 
     file_path=f"{results}/{file_stem}.csv"
-    df=df.set_index("surname")
     df.to_csv(file_path)
 
+def _concat(folders, item_names):
+    resources=folders[0]
+    results=folders[1]
+
+    file_stem=item_names[0]
+
+    p=Path(resources).glob('**/*')
+    files=[x for x in p if x.is_file()]
+    files=[x.stem for x in files]
+    files=[x for x in files if not x==file_stem]
+
+    n_obs=len(files)
+    tot=n_obs-1
+
+    frames=[None]*n_obs
+    converteds=[None]*n_obs
+
+    for i, file in enumerate(files):
+        output=Path(f"{resources}/{file}.csv")
+
+        df=pd.read_csv(output, dtype="string")
+        df=df.set_index(file_stem)
+        converted=True
+        
+        print(f"{i}/{tot} - {file} - done")
+            
+        frames[i]=df
+        converteds[i]=converted
+
+    df=pd.concat(frames)
+    df=df.reindex(index=files)
+    df.insert(0, "converted", converteds)  
+
+    file_path=f"{results}/{file_stem}.csv"
+    df.to_csv(file_path)
 
 
 #RETRIEVE SURNAME ORIGIN
 folders=["_surname0", "_surname1"]
-item_names=["surname"]
+item_names=["_surname"]
 time_sleep=0
-_surname(folders, item_names, time_sleep)
+_functions=[_ancestry, _forebears]
+#_surname(folders, item_names, time_sleep, _functions)
+
+#CONCAT EXISTING RESULTS
+folders=["_surname1", "_concat"]
+item_names=["_surname"]
+_concat(folders, item_names)
 
 print("done")
 
