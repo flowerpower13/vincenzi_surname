@@ -1,6 +1,8 @@
+re
 time
+unicodedata
 pandas
 pathlib
 bs4
 selenium
-sys
+nameparser
